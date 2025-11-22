@@ -7,7 +7,7 @@ async fn main() -> std::io::Result<()> {
     use leptos::config::get_configuration;
     use leptos_meta::MetaTags;
     use leptos_actix::{generate_route_list, LeptosRoutes};
-    use front::app::*;
+    use cron_jobs::app::*;
 
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
@@ -80,7 +80,7 @@ pub fn main() {
     // a client-side main function is required for using `trunk serve`
     // prefer using `cargo leptos serve` instead
     // to run: `trunk serve --open --features csr`
-    use front::app::*;
+    use cron_jobs::app::*;
 
     console_error_panic_hook::set_once();
 
