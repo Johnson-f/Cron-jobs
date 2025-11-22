@@ -13,10 +13,10 @@ pub fn App() -> impl IntoView {
     view! {
         // injects a stylesheet into the document <head>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
-        <Stylesheet id="leptos" href="/pkg/cron.css"/>
+        <Stylesheet id="leptos" href="/pkg/front.css"/>
 
         // sets the document title
-        <Title text="Welcome to Leptos"/>
+        <Title text="Welcome to Lept"/>
 
         // content for this welcome page
         <Router>
@@ -38,8 +38,8 @@ fn HomePage() -> impl IntoView {
     let on_click = move |_| *count.write() += 1;
 
     view! {
-        <h1>"Welcome to Leptos!"</h1>
-        <button on:click=on_click>"Click Me: " {count}</button>
+        <h1 class="text-red-500">"Welcome to Lep"</h1>
+        <button on:click=on_click>"Click M: " {count}</button>
     }
 }
 
