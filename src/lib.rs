@@ -4,6 +4,9 @@ pub mod client;
 pub mod config;
 pub mod ui;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod server;
+
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {

@@ -11,9 +11,28 @@ async fn main() -> std::io::Result<()> {
     use leptos_meta::MetaTags;
     use leptos_actix::{generate_route_list, LeptosRoutes};
     use cron_jobs::app::*;
+    use cron_jobs::server::turso::{TursoClient, TursoConfig};
+    use std::sync::Arc;
 
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
+
+    // Initialize Turso client
+    let turso_config = TursoConfig::from_env()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Turso config error: {}", e)))?;
+    
+    let turso_client = Arc::new(
+        TursoClient::new(turso_config)
+            .await
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to initialize Turso client: {}", e)))?
+    );
+
+    // Health check
+    if let Err(e) = turso_client.health_check().await {
+        eprintln!("Warning: Registry database health check failed: {}", e);
+    }
+
+    let turso_client_data = web::Data::from(turso_client.clone());
 
     HttpServer::new(move || {
         // Generate the list of routes in your Leptos App
@@ -24,6 +43,8 @@ async fn main() -> std::io::Result<()> {
         println!("listening on http://{}", &addr);
 
         App::new()
+            // Add TursoClient to app data
+            .app_data(turso_client_data.clone())
             // serve JS/WASM/CSS from `pkg`
             .service(Files::new("/pkg", format!("{site_root}/pkg")))
             // serve other assets from the `assets` directory
