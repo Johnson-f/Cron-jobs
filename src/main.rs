@@ -1,6 +1,9 @@
 #[cfg(feature = "ssr")]
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Load environment variables from .env file
+    dotenv::dotenv().ok();
+    
     use actix_files::Files;
     use actix_web::*;
     use leptos::prelude::*;
@@ -30,6 +33,12 @@ async fn main() -> std::io::Result<()> {
             .leptos_routes(routes, {
                 let leptos_options = leptos_options.clone();
                 move || {
+                    // Get Supabase config from environment
+                    let supabase_url = std::env::var("VITE_SUPABASE_URL")
+                        .unwrap_or_else(|_| "https://your-project.supabase.co".to_string());
+                    let supabase_anon_key = std::env::var("VITE_SUPABASE_ANON_KEY")
+                        .unwrap_or_else(|_| "your-anon-key".to_string());
+                    
                     view! {
                         <!DOCTYPE html>
                         <html lang="en">
@@ -39,6 +48,18 @@ async fn main() -> std::io::Result<()> {
                                 <AutoReload options=leptos_options.clone() />
                                 <HydrationScripts options=leptos_options.clone()/>
                                 <MetaTags/>
+                                <script>
+                                    {format!(
+                                        r#"
+                                        window.__ENV__ = {{
+                                            VITE_SUPABASE_URL: "{}",
+                                            VITE_SUPABASE_ANON_KEY: "{}"
+                                        }};
+                                        "#,
+                                        supabase_url.replace('"', "\\\""),
+                                        supabase_anon_key.replace('"', "\\\"")
+                                    )}
+                                </script>
                             </head>
                             <body>
                                 <App/>
