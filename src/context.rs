@@ -3,8 +3,7 @@ use crate::config::{get_supabase_url, get_supabase_anon_key};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-// Server function definition - works on both client and server
-// The #[server] macro handles client/server communication automatically
+// Server function definition - simplified macro
 #[server(CreateUserDatabase, "/api")]
 pub async fn create_user_database_action(email: String, access_token: String) -> Result<String, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -14,11 +13,18 @@ pub async fn create_user_database_action(email: String, access_token: String) ->
         use leptos_actix::extract;
         use log::{info, error};
         use std::sync::Arc;
+        use actix_web::web;
         
+        // Extract TursoClient from Actix app data
         let req = extract::<actix_web::HttpRequest>().await
             .map_err(|e| ServerFnError::new(format!("Failed to extract request: {}", e)))?;
         
-        // Validate JWT token and extract user_id (moved from helpers)
+        let client = req.app_data::<web::Data<Arc<TursoClient>>>()
+            .ok_or_else(|| ServerFnError::new("TursoClient not found in app data"))?
+            .get_ref()
+            .clone();
+        
+        // Validate JWT token and extract user_id
         let config = TursoConfig::from_env()
             .map_err(|e| ServerFnError::new(format!("Config error: {}", e)))?;
         
@@ -27,12 +33,6 @@ pub async fn create_user_database_action(email: String, access_token: String) ->
             .map_err(|e| ServerFnError::new(format!("JWT validation failed: {}", e)))?;
         
         info!("[Database Setup] Checking database for user: {} ({})", user_id, email);
-        
-        // Get TursoClient from app data (moved from helpers)
-        let client: Arc<TursoClient> = req.app_data::<actix_web::web::Data<Arc<TursoClient>>>()
-            .ok_or_else(|| ServerFnError::new("TursoClient not found in app data"))?
-            .get_ref()
-            .clone();
         
         // Check if user database already exists
         match client.get_user_database_entry(&user_id).await {
@@ -146,20 +146,20 @@ impl AuthContext {
                 db_status.set(Some("Initializing database...".to_string()));
                 
                 spawn_local(async move {
-                        match create_user_database_action(email_for_db, access_token).await {
-                            Ok(status) => {
+                    match create_user_database_action(email_for_db, access_token).await {
+                        Ok(status) => {
                             #[cfg(target_arch = "wasm32")]
                             web_sys::console::log_1(&format!("[Database] {}", status).into());
                             #[cfg(not(target_arch = "wasm32"))]
-                                log::info!("[Database] {}", status);
-                                db_status.set(Some(format!("✓ {}", status)));
-                            }
-                            Err(e) => {
+                            log::info!("[Database] {}", status);
+                            db_status.set(Some(format!("✓ {}", status)));
+                        }
+                        Err(e) => {
                             #[cfg(target_arch = "wasm32")]
                             web_sys::console::error_1(&format!("[Database] Setup failed: {}", e).into());
                             #[cfg(not(target_arch = "wasm32"))]
-                                log::error!("[Database] Setup failed: {}", e);
-                                db_status.set(Some(format!("⚠ Database setup failed: {}", e)));
+                            log::error!("[Database] Setup failed: {}", e);
+                            db_status.set(Some(format!("⚠ Database setup failed: {}", e)));
                         }
                     }
                 });
@@ -191,20 +191,20 @@ impl AuthContext {
                 db_status.set(Some("Initializing database...".to_string()));
                 
                 spawn_local(async move {
-                        match create_user_database_action(email_for_db, access_token).await {
-                            Ok(status) => {
+                    match create_user_database_action(email_for_db, access_token).await {
+                        Ok(status) => {
                             #[cfg(target_arch = "wasm32")]
                             web_sys::console::log_1(&format!("[Database] {}", status).into());
                             #[cfg(not(target_arch = "wasm32"))]
-                                log::info!("[Database] {}", status);
-                                db_status.set(Some(format!("✓ {}", status)));
-                            }
-                            Err(e) => {
+                            log::info!("[Database] {}", status);
+                            db_status.set(Some(format!("✓ {}", status)));
+                        }
+                        Err(e) => {
                             #[cfg(target_arch = "wasm32")]
                             web_sys::console::error_1(&format!("[Database] Setup failed: {}", e).into());
                             #[cfg(not(target_arch = "wasm32"))]
-                                log::error!("[Database] Setup failed: {}", e);
-                                db_status.set(Some(format!("⚠ Database setup failed: {}", e)));
+                            log::error!("[Database] Setup failed: {}", e);
+                            db_status.set(Some(format!("⚠ Database setup failed: {}", e)));
                         }
                     }
                 });
@@ -230,4 +230,3 @@ impl AuthContext {
         result
     }
 }
-

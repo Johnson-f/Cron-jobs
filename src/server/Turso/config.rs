@@ -41,8 +41,8 @@ impl TursoConfig {
         let supabase_service_role_key = env::var("SUPABASE_SERVICE_ROLE_KEY")
             .map_err(|_| "SUPABASE_SERVICE_ROLE_KEY environment variable not set")?;
         
-        // Supabase JWKS endpoint: https://your-project.supabase.co/auth/v1/.well-known/jwks
-        let jwks_url = format!("{}/auth/v1/.well-known/jwks", supabase_url.trim_end_matches('/'));
+        // Fixed: Added .json extension to JWKS endpoint
+        let jwks_url = format!("{}/auth/v1/.well-known/jwks.json", supabase_url.trim_end_matches('/'));
         
         Ok(TursoConfig {
             registry_db_url,
@@ -68,4 +68,3 @@ pub struct SupabaseClaims {
     pub exp: i64,
     pub iat: i64,
 }
-

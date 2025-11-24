@@ -42,16 +42,40 @@ pub async fn validate_supabase_jwt_token(
     let key = find_key(&jwks, &kid)
         .ok_or_else(|| AuthError::ValidationFailed(format!("Key with kid {} not found", kid)))?;
     
-    // Decode and validate token
-    let mut validation = Validation::new(Algorithm::RS256);
-    // Supabase uses "authenticated" as the audience
-    validation.set_audience(&["authenticated"]);
-    validation.set_issuer(&[config.url.clone()]);
+    // Determine algorithm and create decoding key based on key type
+    let (algorithm, decoding_key) = match key.kty.as_str() {
+        "EC" => {
+            // Elliptic Curve key (ES256)
+            let mut validation = Validation::new(Algorithm::ES256);
+            validation.set_audience(&["authenticated"]);
+            // Fixed: Supabase issuer is {url}/auth/v1
+            let issuer = format!("{}/auth/v1", config.url.trim_end_matches('/'));
+            validation.set_issuer(&[issuer]);
+            
+            let key = DecodingKey::from_ec_components(&key.x, &key.y)
+                .map_err(|e| AuthError::ValidationFailed(format!("Failed to create EC decoding key: {}", e)))?;
+            
+            (validation, key)
+        }
+        "RSA" => {
+            // RSA key (RS256)
+            let mut validation = Validation::new(Algorithm::RS256);
+            validation.set_audience(&["authenticated"]);
+            // Fixed: Supabase issuer is {url}/auth/v1
+            let issuer = format!("{}/auth/v1", config.url.trim_end_matches('/'));
+            validation.set_issuer(&[issuer]);
+            
+            let key = DecodingKey::from_rsa_components(&key.n, &key.e)
+                .map_err(|e| AuthError::ValidationFailed(format!("Failed to create RSA decoding key: {}", e)))?;
+            
+            (validation, key)
+        }
+        kty => {
+            return Err(AuthError::ValidationFailed(format!("Unsupported key type: {}", kty)));
+        }
+    };
     
-    let decoding_key = DecodingKey::from_rsa_components(&key.n, &key.e)
-        .map_err(|e| AuthError::ValidationFailed(format!("Failed to create decoding key: {}", e)))?;
-    
-    let token_data = decode::<SupabaseClaims>(token, &decoding_key, &validation)
+    let token_data = decode::<SupabaseClaims>(token, &decoding_key, &algorithm)
         .map_err(|e| {
             match e.kind() {
                 jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::Expired,
@@ -101,13 +125,39 @@ async fn fetch_jwks(url: &str, anon_key: &str) -> Result<Jwks, AuthError> {
     let jwks_keys: Vec<JwksKey> = keys
         .iter()
         .filter_map(|key| {
-            Some(JwksKey {
-                kid: key["kid"].as_str()?.to_string(),
-                kty: key["kty"].as_str()?.to_string(),
-                use_: key["use"].as_str().unwrap_or("sig").to_string(),
-                n: key["n"].as_str()?.to_string(),
-                e: key["e"].as_str()?.to_string(),
-            })
+            let kty = key["kty"].as_str()?;
+            
+            match kty {
+                "EC" => {
+                    // Elliptic Curve key
+                    Some(JwksKey {
+                        kid: key["kid"].as_str()?.to_string(),
+                        kty: kty.to_string(),
+                        use_: key["use"].as_str().unwrap_or("sig").to_string(),
+                        // EC keys have x and y coordinates
+                        x: key["x"].as_str()?.to_string(),
+                        y: key["y"].as_str()?.to_string(),
+                        // RSA fields are empty for EC keys
+                        n: String::new(),
+                        e: String::new(),
+                    })
+                }
+                "RSA" => {
+                    // RSA key
+                    Some(JwksKey {
+                        kid: key["kid"].as_str()?.to_string(),
+                        kty: kty.to_string(),
+                        use_: key["use"].as_str().unwrap_or("sig").to_string(),
+                        // RSA keys have n and e
+                        n: key["n"].as_str()?.to_string(),
+                        e: key["e"].as_str()?.to_string(),
+                        // EC fields are empty for RSA keys
+                        x: String::new(),
+                        y: String::new(),
+                    })
+                }
+                _ => None,
+            }
         })
         .collect();
     
@@ -128,8 +178,10 @@ struct JwksKey {
     kid: String,
     kty: String,
     use_: String,
+    // EC key fields
+    x: String,
+    y: String,
+    // RSA key fields
     n: String,
     e: String,
 }
-
-
