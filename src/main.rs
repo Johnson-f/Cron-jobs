@@ -2,16 +2,53 @@
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Load environment variables from .env file
-    dotenv::dotenv().ok();
+    // Find project root by looking for Cargo.toml
+    let mut current_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    
+    // Try to find project root (where Cargo.toml exists)
+    loop {
+        let cargo_toml = current_dir.join("Cargo.toml");
+        let env_file = current_dir.join(".env");
+        
+        if env_file.exists() {
+            // Found .env file, try to load it
+            if let Err(e) = dotenv::from_path(&env_file) {
+                eprintln!("⚠ Warning: Failed to load .env from {:?}: {}", env_file, e);
+            } else {
+                eprintln!("✓ Loaded .env from {:?}", env_file);
+                break;
+            }
+        }
+        
+        // Move up one directory
+        if let Some(parent) = current_dir.parent() {
+            current_dir = parent.to_path_buf();
+        } else {
+            // Reached filesystem root, try current directory as fallback
+            dotenv::dotenv().ok();
+            break;
+        }
+        
+        // Safety: don't go too far up (max 10 levels)
+        if current_dir.components().count() < 2 {
+            dotenv::dotenv().ok();
+            break;
+        }
+    }
+    
+    // Verify critical environment variable is loaded
+    if std::env::var("REGISTRY_DB_URL").is_err() {
+        eprintln!("⚠ Warning: REGISTRY_DB_URL not found. Make sure .env file exists in project root.");
+    }
     
     use actix_files::Files;
     use actix_web::*;
     use leptos::prelude::*;
     use leptos::config::get_configuration;
     use leptos_meta::MetaTags;
-    use leptos_actix::{generate_route_list, LeptosRoutes};
-    use cron_jobs::app::*;
-    use cron_jobs::server::turso::{TursoClient, TursoConfig};
+    use leptos_actix::{generate_route_list, LeptosRoutes, handle_server_fns};
+    use ::cron_jobs::app::*;
+    use ::cron_jobs::server::turso::{TursoClient, TursoConfig};
     use std::sync::Arc;
 
     let conf = get_configuration(None).unwrap();
@@ -34,23 +71,27 @@ async fn main() -> std::io::Result<()> {
 
     let turso_client_data = web::Data::from(turso_client.clone());
 
+    println!("listening on http://{}", &addr);
+
     HttpServer::new(move || {
         // Generate the list of routes in your Leptos App
         let routes = generate_route_list(App);
         let leptos_options = &conf.leptos_options;
         let site_root = leptos_options.site_root.clone().to_string();
 
-        println!("listening on http://{}", &addr);
-
         App::new()
-            // Add TursoClient to app data
+            // Add TursoClient to app data - MUST be before routes
             .app_data(turso_client_data.clone())
+            .app_data(web::Data::new(leptos_options.to_owned()))
+            // Register server function handler with .route() instead of .service()
+            .route("/api/{tail:.*}", handle_server_fns())
             // serve JS/WASM/CSS from `pkg`
             .service(Files::new("/pkg", format!("{site_root}/pkg")))
             // serve other assets from the `assets` directory
             .service(Files::new("/assets", &site_root))
             // serve the favicon from /favicon.ico
             .service(favicon)
+            // Leptos routes handle server functions automatically
             .leptos_routes(routes, {
                 let leptos_options = leptos_options.clone();
                 move || {
@@ -89,7 +130,6 @@ async fn main() -> std::io::Result<()> {
                     }
                 }
             })
-            .app_data(web::Data::new(leptos_options.to_owned()))
         //.wrap(middleware::Compress::default())
     })
     .bind(&addr)?

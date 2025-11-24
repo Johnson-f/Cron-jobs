@@ -1,6 +1,5 @@
 use crate::server::models::{CronJob, CreateCronJobRequest, UpdateCronJobRequest};
 use crate::server::turso::TursoClient;
-use libsql::Connection;
 use uuid::Uuid;
 
 pub async fn get_user_cron_jobs(

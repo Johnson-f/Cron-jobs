@@ -119,6 +119,7 @@ pub fn get_expected_schema() -> Vec<TableSchema> {
                 ColumnInfo { name: "enabled".to_string(), data_type: "BOOLEAN".to_string(), is_nullable: false, default_value: Some("1".to_string()), is_primary_key: false },
                 ColumnInfo { name: "created_at".to_string(), data_type: "TIMESTAMP".to_string(), is_nullable: false, default_value: Some("CURRENT_TIMESTAMP".to_string()), is_primary_key: false },
                 ColumnInfo { name: "updated_at".to_string(), data_type: "TIMESTAMP".to_string(), is_nullable: false, default_value: Some("CURRENT_TIMESTAMP".to_string()), is_primary_key: false },
+            ],
             indexes: vec![
                 IndexInfo {
                     name: "idx_cron_jobs_user_id".to_string(),
@@ -340,7 +341,7 @@ pub async fn update_table_schema(conn: &Connection, table_schema: &TableSchema) 
         .map_err(|e| format!("Failed to get current columns: {}", e))?;
 
     // Handle column renames: map old column names to new ones
-    let mut column_rename_map: HashMap<String, String> = HashMap::new();
+    let column_rename_map: HashMap<String, String> = HashMap::new();
     
     // Add column rename mappings for cron_jobs table
     if table_schema.name == "cron_jobs" {

@@ -36,7 +36,7 @@ pub async fn validate_supabase_jwt_token(
     let kid = header.kid.ok_or_else(|| AuthError::ValidationFailed("Missing kid in header".to_string()))?;
     
     // Fetch JWKS
-    let jwks = fetch_jwks(&config.jwks_url).await?;
+    let jwks = fetch_jwks(&config.jwks_url, &config.anon_key).await?;
     
     // Find the key matching the kid
     let key = find_key(&jwks, &kid)
@@ -68,18 +68,24 @@ pub async fn get_supabase_user_id(token: &str, config: &SupabaseConfig) -> Resul
     Ok(claims.sub)
 }
 
-async fn fetch_jwks(url: &str) -> Result<Jwks, AuthError> {
+async fn fetch_jwks(url: &str, anon_key: &str) -> Result<Jwks, AuthError> {
     let client = reqwest::Client::new();
+    
+    // Try with authentication headers (some Supabase instances require this)
     let response = client
         .get(url)
+        .header("apikey", anon_key)
+        .header("Authorization", format!("Bearer {}", anon_key))
         .send()
         .await
         .map_err(|e| AuthError::JwksFetchError(format!("Request failed: {}", e)))?;
     
-    if !response.status().is_success() {
+    let status = response.status();
+    if !status.is_success() {
+        let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
         return Err(AuthError::JwksFetchError(format!(
-            "HTTP error: {}",
-            response.status()
+            "HTTP error: {} - {} (URL: {})",
+            status, error_text, url
         )));
     }
     
@@ -108,7 +114,7 @@ async fn fetch_jwks(url: &str) -> Result<Jwks, AuthError> {
     Ok(Jwks { keys: jwks_keys })
 }
 
-fn find_key(jwks: &Jwks, kid: &str) -> Option<&JwksKey> {
+fn find_key<'a>(jwks: &'a Jwks, kid: &str) -> Option<&'a JwksKey> {
     jwks.keys.iter().find(|key| key.kid == kid)
 }
 
@@ -125,4 +131,5 @@ struct JwksKey {
     n: String,
     e: String,
 }
+
 

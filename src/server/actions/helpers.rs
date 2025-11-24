@@ -1,10 +1,9 @@
 use crate::server::turso::{get_supabase_user_id, TursoClient, TursoConfig};
-use leptos::*;
-use leptos_actix::extract;
+use leptos::prelude::ServerFnError;
 use std::sync::Arc;
 
 /// Helper to get user_id from request by validating JWT token
-pub(crate) async fn get_user_id_from_request(req: &actix_web::HttpRequest) -> Result<String, ServerFnError> {
+pub async fn get_user_id_from_request(req: &actix_web::HttpRequest) -> Result<String, ServerFnError> {
     let auth_header = req.headers()
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
@@ -25,7 +24,7 @@ pub(crate) async fn get_user_id_from_request(req: &actix_web::HttpRequest) -> Re
 }
 
 /// Helper to get TursoClient from app data
-pub(crate) fn get_turso_client(req: &actix_web::HttpRequest) -> Result<Arc<TursoClient>, ServerFnError> {
+pub fn get_turso_client(req: &actix_web::HttpRequest) -> Result<Arc<TursoClient>, ServerFnError> {
     req.app_data::<actix_web::web::Data<Arc<TursoClient>>>()
         .ok_or_else(|| ServerFnError::new("TursoClient not found in app data"))
         .map(|data| data.get_ref().clone())

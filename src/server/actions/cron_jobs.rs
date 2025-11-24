@@ -1,7 +1,8 @@
 use crate::server::actions::helpers::{get_user_id_from_request, get_turso_client};
 use crate::server::models::{CronJob, CreateCronJobRequest, UpdateCronJobRequest};
 use crate::server::service::{create_cron_job, delete_cron_job, get_user_cron_jobs, update_cron_job};
-use leptos::*;
+use leptos::prelude::ServerFnError;
+use leptos::server;
 use leptos_actix::extract;
 
 #[server(GetCronJobs, "/api")]
